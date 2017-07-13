@@ -153,31 +153,109 @@ cpuChart.append("text")
     .attr("class", "lineLabel2")
     .text("Node Process");
 
+var cpuChartIsFullScreen = false;
+
+// Add the maximise button
+var cpuResize = cpuSVG.append("image")
+    .attr("x", canvasWidth - 30)
+    .attr("y", 4)
+    .attr("width", 24)
+    .attr("height", 24)
+    .attr("xlink:href","images/maximize_24_grey.png")
+    .attr("class", "maximize")
+    .on("click", function(){
+        cpuChartIsFullScreen = !cpuChartIsFullScreen
+        d3.selectAll(".hideable").classed("invisible", cpuChartIsFullScreen);
+        d3.select("#cpuDiv1").classed("fullscreen", cpuChartIsFullScreen)
+            .classed("invisible", false); // remove invisible from this chart
+        if(cpuChartIsFullScreen) {
+            d3.select(".cpuChart .maximize").attr("xlink:href","images/minimize_24_grey.png")
+            // Redraw this chart only
+            resizeCPUChart();
+        } else {
+            canvasWidth = $("#cpuDiv1").width() - 8; // -8 for margins and borders
+            graphWidth = canvasWidth - margin.left - margin.right;
+            d3.select(".cpuChart .maximize").attr("xlink:href","images/maximize_24_grey.png")
+            canvasHeight = 250;
+            graphHeight = canvasHeight - margin.top - margin.bottom;
+            // Redraw all
+            resize();
+        }
+    })
+    .on("mouseover", function() {
+        if(cpuChartIsFullScreen) {
+            d3.select(".cpuChart .maximize").attr("xlink:href","images/minimize_24.png")
+        } else {
+            d3.select(".cpuChart .maximize").attr("xlink:href","images/maximize_24.png")
+        }
+    })
+    .on("mouseout", function() {
+        if(cpuChartIsFullScreen) {
+            d3.select(".cpuChart .maximize").attr("xlink:href","images/minimize_24_grey.png")
+        } else {
+            d3.select(".cpuChart .maximize").attr("xlink:href","images/maximize_24_grey.png")
+        }
+    });
+
+
 function resizeCPUChart() {
-  var chart = d3.select(".cpuChart");
-  chart.attr("width", canvasWidth);
-  cpu_xScale = d3.time.scale().range([0, graphWidth]);
-  cpu_xAxis = d3.svg.axis()
+    if(cpuChartIsFullScreen) {
+        canvasWidth = $("#cpuDiv1").width() - 30; // -30 for margins and borders
+        graphWidth = canvasWidth - margin.left - margin.right;
+        canvasHeight = $("#cpuDiv1").height() - 100;
+        graphHeight = canvasHeight - margin.top - margin.bottom;
+    }
+    // Redraw placeholder
+    cpuChartPlaceholder
+        .attr("x", graphWidth / 2)
+        .attr("y", graphHeight / 2)
+
+    var chart = d3.select(".cpuChart");
+    chart.attr("width", canvasWidth)
+        .attr("height", canvasHeight);
+    cpu_xScale = d3.time.scale().range([0, graphWidth]);
+    cpu_yScale = d3.scale.linear().range([graphHeight, 0]);
+    cpu_xAxis = d3.svg.axis()
         .scale(cpu_xScale)
         .orient("bottom")
         .ticks(3)
         .tickFormat(getTimeFormat());
-  cpu_yAxis.tickSize(-graphWidth, 0, 0);
+    cpu_yAxis = d3.svg.axis()
+        .scale(cpu_yScale)
+        .orient("left")
+        .tickValues(cpu_yTicks)
+        .tickSize(-graphWidth, 0, 0)
+        .tickFormat(function(d) {
+            return d + "%";
+        });
+    cpu_yAxis.tickSize(-graphWidth, 0, 0);
 
-  cpuTitleBox.attr("width", canvasWidth);
+    cpuTitleBox.attr("width", canvasWidth);
+    cpuResize.attr("x", canvasWidth - 30)
+      .attr("y", 4)
 
     // Redraw lines and axes
-  cpu_xScale.domain(d3.extent(cpuData, function(d) {
-    return d.date;
-  }));
-  chart.select(".systemLine")
+    cpu_xScale.domain(d3.extent(cpuData, function(d) {
+        return d.date;
+    }));
+    cpu_yScale.domain([0, 100]);
+    chart.select(".systemLine")
         .attr("d", systemline(cpuData));
-  chart.select(".processLine")
+    chart.select(".processLine")
         .attr("d", processline(cpuData));
-  chart.select(".xAxis")
+    chart.select(".xAxis")
+        .attr("transform", "translate(0," + graphHeight + ")")
         .call(cpu_xAxis);
-  chart.select(".yAxis")
+    chart.select(".yAxis")
         .call(cpu_yAxis);
+    chart.select(".colourbox1")
+        .attr("y", graphHeight + margin.bottom - 15);
+    chart.select(".lineLabel")
+      .attr("y", graphHeight + margin.bottom - 5)
+    chart.select(".colourbox2")
+      .attr("y", graphHeight + margin.bottom - 15)
+    chart.select(".lineLabel2")
+      .attr("y", graphHeight + margin.bottom - 5)
 }
 
 
@@ -237,4 +315,3 @@ function updateCPUData() {
 }
 
 updateCPUData();
-
