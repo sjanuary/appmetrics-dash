@@ -1,0 +1,224 @@
+<!--
+******************************************************************************
+ * Copyright 2017 IBM Corp.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ ******************************************************************************
+-->
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<link rel="stylesheet" href="graphmetrics/bootstrap-3.3.7-dist/css/bootstrap.min.css">
+<link rel="stylesheet" type="text/css" href="graphmetrics/css/style2.css" title="Light background">
+<link rel="alternate stylesheet" type="text/css" href="graphmetrics/css/style.css" title="Dark background">
+
+<head>
+  <title>Application Metrics Dashboard, mixed metrics for Node.js, Swift and Java</title>
+</head>
+
+<body>
+  <!--<h1>Application Metrics Dashboard for Node.js</h1>-->
+  <!-- load the d3.js library -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="graphmetrics/d3/d3.v3.min.js"></script>
+  <script src="graphmetrics/jquery/jquery-3.1.1.min.js"></script>
+  <script src="graphmetrics/bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+
+  <div class="headerDiv">
+    <span class="leftHeader"></span>
+    <span class="rightHeader"></span>
+  </div>
+
+
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-4 hideable" id="httpDiv1"></div>
+      <div class="col-md-4 hideable" id="cpuDiv1"></div>
+      <div class="col-md-4 hideable" id="memDiv1"></div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-4 hideable" id="httpDiv2"></div>
+      <div class="col-md-4 hideable" id="cpuDiv2"></div>
+      <div class="col-md-4 hideable" id="memDiv2"></div>
+    </div>
+    <div class="row">
+      <div class="col-md-4 hideable" id="httpDiv3"></div>
+      <div class="col-md-4 hideable" id="cpuDiv3"></div>
+      <div class="col-md-4 hideable" id="memPoolsDiv"></div>
+    </div>
+  </div>
+</div>
+
+
+  <script type="text/javascript" src="graphmetrics/js/i18n.js"></script>
+  <script>
+    // Global variables
+    var localizedStrings = {};
+    var monitoringStartTime = new Date();
+    var maxTimeWindow = 900000; // 15 minutes
+    // Initialise graph and canvas dimensions
+    var margin = {
+        top: 50,
+        right: 20,
+        bottom: 50,
+        shortBottom: 30,
+        left: 60
+      },
+      canvasWidth = $("#cpuDiv1").width() - 8, // -8 for margins and borders
+      httpCanvasWidth = $("#httpDiv1").width() - 8,
+      memPoolsCanvasWidth = $("#memPoolsDiv").width() - 8,
+      graphWidth = canvasWidth - margin.left - margin.right,
+      httpGraphWidth = httpCanvasWidth - margin.left - margin.right,
+      memPoolsGraphWidth = memPoolsCanvasWidth - margin.left - margin.right,
+      canvasHeight = 250,
+      tallerGraphHeight = canvasHeight - margin.top - margin.shortBottom,
+      graphHeight = canvasHeight - margin.top - margin.bottom;
+    let myurl = location.host;
+    var socket = io.connect(myurl);
+    function getTimeFormat() {
+      var currentTime = new Date()
+      if (currentTime.getMinutes() - monitoringStartTime.getMinutes() >= 3 ||
+        currentTime.getHours() > monitoringStartTime.getHours()) {
+        return d3.time.format("%H:%M");
+      } else {
+        return d3.time.format("%H:%M:%S");
+      }
+    }
+    let swifturl = "localhost:8080"
+
+    var webSocketProtocol = "ws://"
+    var client = new WebSocket(webSocketProtocol + swifturl + "/swiftmetrics-dash")
+
+    client.onmessage = function(message) {
+        received = JSON.parse(message.data);
+        topic = received.topic;
+        payload = JSON.stringify(received.payload);
+
+        switch (topic) {
+            case 'cpu':
+                updateSwiftCPUData(payload);
+                break;
+            case 'memory':
+                updateSwiftMemData(payload);
+                break;
+            case 'env':
+                //populateEnvTable(payload);
+                break;
+            case 'http':
+                updateSwiftHttpData(payload);
+                break;
+            case 'httpURLs':
+                //updateURLData(payload);
+                break;
+            case 'title' :
+                //updateHeader(payload);
+                break;
+
+        }
+    }
+
+    let javaurl = "localhost:9080"
+    let client2 = new WebSocket(webSocketProtocol + javaurl + "/javametrics-dash/javametrics-socket")
+
+    client2.onmessage = function(message) {
+        received = JSON.parse(message.data);
+        topic = received.topic;
+        payload = JSON.stringify(received.payload);
+
+        switch (topic) {
+            case 'cpu':
+                updateJavaCPUData(payload);
+                break;
+            case 'gc':
+                //updateGCData(payload);
+                break;
+            case 'env':
+                //populateEnvTable(payload);
+                break;
+            case 'http':
+                updateJavaHttpData(payload);
+                break;
+            case 'httpURLs':
+                //updateURLData(payload);
+                break;
+            case 'title' :
+                //updateHeader(payload);
+                break;
+            case 'memoryPools':
+                updateMemPoolsData(payload);
+                break;
+
+        }
+    }
+
+    populateLocalizedStrings();
+    localizedStrings.httpRequestsTitle = "Node.js Incoming HTTP Requests";
+    localizedStrings.cpuTitle = "Node.js CPU";
+    localizedStrings.memoryTitle = "Node.js Memory";
+    localizedStrings.gcTitle = "Java Heap Memory";
+  </script>
+
+  <script type="text/javascript" src="graphmetrics/js/header.js"></script>
+  <script type="text/javascript" src="graphmetrics/js/httpRequestsChart.js"></script>
+  <script type="text/javascript" src="graphmetrics/js/cpuChart.js"></script>
+  <script type="text/javascript" src="graphmetrics/js/memChart.js"></script>
+
+  <script type="text/javascript" src="extra/swiftCpuChart.js"></script>
+  <script type="text/javascript" src="extra/swiftMemChart.js"></script>
+  <script type="text/javascript" src="extra/javaCpuChart.js"></script>
+  <script type="text/javascript" src="graphmetrics/js/memPoolsChart.js"></script>
+  <script type="text/javascript" src="extra/swiftHttpRequestsChart.js"></script> 
+
+  <script type="text/javascript" src="extra/javaHttpRequestsChart.js"></script>
+
+  <script>
+    socket.emit('connected');
+    socket.on('cpu', function(data) {
+      updateCPUData(data);
+    });
+    socket.on('http', function(data) {
+      updateHttpData(data);
+    });
+    socket.on('memory', function(data) {
+      updateMemData(data);
+    });
+    socket.on('title', function(data) {
+      updateHeader("{\"title\" : \"Application Metrics for Node.js, Java and Swift\"}");
+    });
+  
+    window.addEventListener('resize', resize);
+
+    function resize() {
+        canvasWidth = $("#cpuDiv1").width() - 8,
+        httpCanvasWidth = $("#httpDiv1").width() - 8,
+      	memPoolsCanvasWidth = $("#memPoolsDiv").width() - 8,
+      	graphWidth = canvasWidth - margin.left - margin.right,
+      	httpGraphWidth = httpCanvasWidth - margin.left - margin.right,
+      	memPoolsGraphWidth = memPoolsCanvasWidth - margin.left - margin.right,
+        resizeCPUChart();
+        resizeSwiftCpuChart();
+        resizeJavaCpuChart();
+        resizeHttpChart();
+        resizeJavaHttpChart();
+        resizeSwiftHttpChart();
+        resizeMemChart();
+        resizeMemPoolsChart();
+        resizeSwiftMemChart();    
+  }
+  </script>
+
+</body>
+
+</html>
